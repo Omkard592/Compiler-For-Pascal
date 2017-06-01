@@ -1,0 +1,370 @@
+/********************************************************************************
+*
+* File: pcat.cup
+* The PCAT parser
+*
+Omkar Deshmukh
+UTA ID: 1001275806
+********************************************************************************/
+
+package edu.uta.pcat;
+
+import scala.collection.immutable.*;
+import scala.Tuple2;
+import java_cup.runtime.*;
+
+
+parser code {:
+
+    static int[] tokens = {
+      sym.error, sym.ID, sym.STRING_LITERAL, sym.INTEGER_LITERAL, sym.REAL_LITERAL,
+      sym.AND, sym.ARRAY, sym.BEGIN, sym.BY, sym.DIV, sym.DO, sym.ELSE, sym.ELSIF, sym.END,
+      sym.EXIT, sym.FOR, sym.IF, sym.IS, sym.LOOP, sym.MOD, sym.NOT, sym.OF, sym.OR,
+      sym.PROCEDURE, sym.PROGRAM, sym.READ, sym.RECORD, sym.RETURN, sym.THEN, sym.TO,
+      sym.TYPE, sym.VAR, sym.WHILE, sym.WRITE, sym.ASGN, sym.PLUS, sym.MINUS, sym.TIMES, sym.SLASH,
+      sym.LT, sym.LEQ, sym.GT, sym.GEQ, sym.EQ, sym.NEQ, sym.COLON, sym.SEMI, sym.COMMA, sym.DOT,
+      sym.LPAREN, sym.RPAREN, sym.LSQBRA, sym.RSQBRA, sym.LCUBRA, sym.RCUBRA
+    };
+
+    static String[] token_names = {
+      "error", "ID", "STRING_LITERAL", "INTEGER_LITERAL", "REAL_LITERAL",
+      "AND", "ARRAY", "BEGIN", "BY", "DIV", "DO", "ELSE", "ELSIF", "END",
+      "EXIT", "FOR", "IF", "IS", "LOOP", "MOD", "NOT", "OF", "OR",
+      "PROCEDURE", "PROGRAM", "READ", "RECORD", "RETURN", "THEN", "TO",
+      "TYPE", "VAR", "WHILE", "WRITE", "ASGN :=", "PLUS +", "MINUS -", "TIMES *", "SLASH /",
+      "LT <", "LEQ <=", "GT >", "GEQ >=", "EQ =", "NEQ <>", "COLON :", "SEMI ;", "COMMA ,", "DOT .",
+      "LPAREN (", "RPAREN )", "LSQBRA [", "RSQBRA ]", "LCUBRA "+'{', "RCUBRA "+'}'
+    };
+
+    public static String print ( Symbol s ) {
+        for ( int i = 0; i < tokens.length; i++ ) {
+            if (tokens[i] == s.sym) {
+                String res = token_names[i] + " ";
+                if (s.value == null)
+                    return res;
+                else if (s.value instanceof Integer)
+                    return res + ((Integer) s.value).intValue();
+                else if (s.value instanceof Float)
+                    return res + ((Float) s.value).floatValue();
+                else if (s.value instanceof String)
+                    return res + "\"" + (String) s.value + "\"";
+            }
+        };
+        return "?";
+    }
+
+    public void syntax_error ( Symbol token ) {
+        System.err.println("*** Syntax Error: " + print(token) + " (line: " + token.left
+                           + ", column: " + token.right + ")");
+        System.exit(1);
+    }
+
+    /** nil is the empty list */
+    final static List nil = Nil$.MODULE$;
+
+    /** Append list2 at the end of list1 (ie, return a new list containing
+        the elements from list1 followed by the elements from list2) */
+    static<T> List<T> append ( List<T> list1, List<T> list2 ) {
+        return list1.$colon$colon$colon(list2);
+    }
+
+    /** append the element elem at the end of the list
+       (ie, return a new list containing the list followed by the elem) */
+    static<T> List<T> append ( List<T> list, T elem ) {
+        return nil.$colon$colon(elem).$colon$colon$colon(list);
+    }
+
+    /** Insert the element elem at the beginning of the list
+        (ie, return a new list containing the elem followed by the list) */
+    static<T> List<T> add ( T elem, List<T> list ) {
+        return list.$colon$colon(elem);
+    }
+
+:};
+
+/* Terminals (tokens returned by the scanner). */
+terminal String  ID, STRING_LITERAL;
+terminal Integer INTEGER_LITERAL;
+terminal Float   REAL_LITERAL;
+terminal         AND, ARRAY, BEGIN, BY, DIV, DO, ELSE, ELSIF, END, EXIT, FOR, IF, IS, LOOP, MOD,
+                 NOT, OF, OR, PROCEDURE, PROGRAM, READ, RECORD, RETURN, THEN, TO, TYPE, VAR, WHILE,
+                 WRITE, ASGN, PLUS, MINUS, TIMES, SLASH, LT, LEQ, GT, GEQ, EQ, NEQ, COLON, SEMI,
+                 COMMA, DOT, LPAREN, RPAREN, LSQBRA, RSQBRA, LCUBRA, RCUBRA;
+
+non terminal					program;
+non terminal List<Declaration>	body_lst;
+non terminal Body				body;
+non terminal Declaration		declaration;
+non terminal List<VarDecl>		var_decl_lst;
+non terminal List<VarDecl>		var_decls;
+non terminal String				sq_var_decl;
+non terminal VarDecl			var_decl;
+non terminal List<TypeDecl>		type_decls_lst;
+non terminal List<TypeDecl>		type_decls;
+non terminal TypeDecl			type_decl;
+non terminal List<ProcDecl>		pdcls_lst;
+non terminal List<ProcDecl>		procedure_decls;
+non terminal String				sq_proc_decl;
+non terminal ProcDecl			procedure_decl;
+non terminal String				typename;
+non terminal List<Tuple2<String,String>>	component_lst;
+non terminal Type				type;
+non terminal List<Tuple2<String,String>>		component;
+non terminal List<Tuple2<List<String>,String>>					fp_section_lst;
+non terminal List<Tuple2<List<String>,String>>					formal_params;
+non terminal List<Tuple2<List<String>,String>>					fp_section;
+non terminal List<String>		id_lst;
+non terminal List<Lvalue>		read_lst;
+non terminal Expr				sq_return;
+non terminal Expr					sq_for;
+non terminal List<Stmt>					sq_else;
+non terminal List<Stmt>					elsif_lst;
+non terminal List<Stmt>   		statement_lst;
+non terminal Stmt        		statement;	
+non terminal List<Expr>			write_paramslst;
+non terminal List<Expr>			write_params;
+non terminal Expr				write_expr;
+non terminal Expr				expression;
+non terminal Lvalue				lvalue;
+non terminal List<Expr>			expression_lst;
+non terminal List<Expr>			actual_params;
+non terminal List<Tuple2<String,Expr>>	record_init_lst;
+non terminal List<Tuple2<String,Expr>>	record_inits;
+non terminal List<Expr>				array_init_lst;
+non terminal List<Expr>					sq_array_inits;
+non terminal List<Expr>					sq_array_init;
+non terminal List<Tuple2<Expr,Expr>>	array_inits;
+non terminal List<Expr>				array_init;
+non terminal Expr				number;
+
+precedence left					ASGN;
+precedence nonassoc				ELSE;
+precedence nonassoc				ELSIF;
+precedence right				OR;
+precedence right				AND;
+precedence nonassoc				NOT;
+precedence left					EQ, NEQ;
+precedence left					LT, GT, LEQ, GEQ;
+precedence left					PLUS, MINUS;
+precedence left					TIMES, SLASH, DIV, MOD;
+precedence left					LPAREN, RPAREN;
+
+
+start with program;
+
+program         ::= PROGRAM IS body:b SEMI			{: PCAT.setAST(new ProcDecl("main","NoType",nil,b)); :}           
+                ;
+				
+body_lst		::=	declaration:d					{: RESULT = add(d,nil); :}
+				|	body_lst:bl declaration:d		{: RESULT = append(bl,d); :}			
+				;
+				
+body            ::= body_lst:bl BEGIN statement_lst:sl END		{: RESULT = new Body(bl,sl); :}		
+				|	BEGIN statement_lst:sl END					{: RESULT = new Body(nil,sl); :}
+                ;
+				
+declaration		::=	VAR var_decls:vdecs					{: RESULT = new VarDecls(vdecs); :}							
+				|	TYPE type_decls:tdecs				{: RESULT = new TypeDecls(tdecs); :}
+				|	PROCEDURE procedure_decls:pdecs		{: RESULT = new ProcDecls(pdecs); :}	
+				;
+				
+var_decl_lst	::=	var_decl_lst:vdecl var_decl:vdec	{: RESULT = append(vdecl,vdec); :}
+				| 	var_decl:vdec						{: RESULT = add(vdec,nil); :}
+				;
+				
+var_decls		::=	var_decl:vdec var_decl_lst:vdecl	{: RESULT = add(vdec,vdecl); :}
+				| 	var_decl:vdec						{: RESULT = add(vdec,nil); :}
+				;
+				
+sq_var_decl		::=	COLON typename:t				{: RESULT = t; :}
+				;
+				
+var_decl		::=	ID:i id_lst:idl sq_var_decl:sqvd ASGN expression:e SEMI		{: RESULT = new VarDecl(add(i,idl),sqvd,e); :}
+				|	ID:i sq_var_decl:sqvd ASGN expression:e SEMI				{: RESULT = new VarDecl(add(i,nil),sqvd,e); :}
+				|	ID:i id_lst:idl ASGN expression:e SEMI						{: RESULT = new VarDecl(add(i,idl),"NoType",e); :}
+				|	ID:i ASGN expression:e SEMI									{: RESULT = new VarDecl(add(i,nil),"NoType",e); :}
+				;
+				
+type_decls_lst	::=	type_decls_lst:tdecl AND type_decl:tdec		{: RESULT = append(tdecl,tdec); :}
+				|	AND type_decl:tdec							{: RESULT = add(tdec,nil); :}
+				;
+				
+type_decls		::=	type_decl:tdec type_decls_lst:tdecl			{: RESULT = add(tdec,tdecl); :}
+				|	type_decl:tdec								{: RESULT = add(tdec,nil); :}	
+				;
+			
+type_decl		::=	ID:i IS type:t SEMI				{: RESULT = new TypeDecl(i,t); :}			
+				;
+				
+pdcls_lst		::=	pdcls_lst:pdecl AND procedure_decl:pdec		{: RESULT = append(pdecl,pdec); :}			
+				|	AND procedure_decl:pdec						{: RESULT = add(pdec,nil); :}	
+				;
+				
+procedure_decls	::=	procedure_decl:pdec pdcls_lst:pdecl			{: RESULT = add(pdec,pdecl); :}
+				|	procedure_decl:pdec							{: RESULT = add(pdec,nil); :}
+				;
+				
+sq_proc_decl	::=	COLON typename:t				{: RESULT = t; :}
+				;
+				
+procedure_decl	::=	ID:i formal_params:fp sq_proc_decl:sqpdl IS body:b SEMI		{: RESULT = new ProcDecl(i,sqpdl,fp,b); :}	
+				|	ID:i formal_params:fp IS body:b SEMI						{: RESULT = new ProcDecl(i,"NoType",fp,b); :}
+				;
+				
+typename		::= ID:i							{: RESULT = i; :}
+				;
+				
+component_lst	::= component_lst:cl component:c	{: RESULT = append(cl,c); :}		
+				| 	component:c						{: RESULT = append(c,nil); :}
+				;
+				
+type			::=	ARRAY OF typename:tn						{: RESULT = new ArrayType(tn); :}
+				|	RECORD component:c component_lst:cl END		{: RESULT = new RecordType(append(cl,c)); :}	
+				|	RECORD component:c END						{: RESULT = new RecordType(append(c,nil)); :}
+				;
+				
+component		::= ID:i COLON typename:tn SEMI		{: RESULT = add(i,add(tn,nil)); :}
+				;
+				
+fp_section_lst	::= fp_section_lst:fpsl SEMI fp_section:fps		{: RESULT = append(fpsl,fps); :}
+				|	SEMI fp_section:fps							{: RESULT = add(fps,nil); :}
+				;
+				
+formal_params	::= LPAREN fp_section:fps fp_section_lst:fpsl RPAREN			{: RESULT = append(fpsl,fps); :}
+				|	LPAREN fp_section:fps RPAREN								{: RESULT = add(fps,nil); :}
+				|	LPAREN RPAREN												{: RESULT = nil; :}
+				;
+				
+fp_section		::= ID:i id_lst:idl COLON typename:t			{: RESULT = append(append(idl,add(i,nil)),t); :}		
+				|	ID:i COLON typename:t						{: RESULT = append(add(i,nil),t); :}
+				;
+
+id_lst			::= id_lst:il COMMA ID:i			{: RESULT = append(il,i); :}
+				|	COMMA ID:i						{: RESULT = add(i,nil); :}
+				;
+				
+read_lst		::= read_lst:rl COMMA lvalue:lval	{: RESULT = append(rl,lval); :}
+				|	COMMA lvalue:lval				{: RESULT = add(lval,nil); :}
+				;
+
+sq_return		::=	expression:e					{: RESULT = e; :} 
+				;
+
+sq_for			::= BY expression:e 				{: RESULT = e; :} 
+				;
+				
+sq_else			::=	ELSE statement_lst:sl			{: RESULT = sl; :} 
+				;
+				
+elsif_lst		::=	elsif_lst:el ELSIF expression:e THEN statement_lst:sl			//{: RESULT = add(e,add(sl,nil)); :}
+				|	ELSIF expression:e THEN statement_lst:sl					{: RESULT = add(e,add(sl,nil)); :}
+				;
+				
+statement_lst   ::= statement_lst:sl statement:s	{: RESULT = append(sl,s); :}                  
+                |   statement:s						{: RESULT = add(s,nil); :}      
+                ;
+				
+statement		::=	lvalue:lval ASGN expression:e SEMI					{: RESULT = new AssignSt(lval,e); :}
+				|	ID:i actual_params:ap SEMI							{: RESULT = new CallSt(i,ap); :}
+				|	READ LPAREN lvalue:lval read_lst:rl RPAREN SEMI		{: RESULT = new ReadSt(add(lval,rl)); :}
+				|	READ LPAREN lvalue:lval RPAREN SEMI					{: RESULT = new ReadSt(add(lval,nil)); :}
+				|	WRITE write_params:wp SEMI							{: RESULT = new WriteSt(wp); :}
+				|	IF expression:e THEN statement_lst:bs elsif_lst:eis sq_else:es END SEMI	
+													{: RESULT = new IfSt(e,new SeqSt(bs),new IfSt(e,new SeqSt(eis),new SeqSt(es))); :}
+				|	IF expression:e THEN statement_lst:bs elsif_lst:eis END SEMI
+													{: RESULT = new IfSt(e,new SeqSt(bs),new IfSt(e,new SeqSt(eis),new SeqSt(nil))); :}
+				|	IF expression:e THEN statement_lst:bs sq_else:es END SEMI
+													{: RESULT = new IfSt(e,new SeqSt(bs),new SeqSt(es)); :}
+				|	IF expression:e THEN statement_lst:bs END SEMI		{: RESULT = new IfSt(e,new SeqSt(bs),new SeqSt(nil)); :}
+				|	WHILE expression:e DO statement_lst:bs END SEMI		{: RESULT = new WhileSt(e,new SeqSt(bs)); :}	
+				|	LOOP statement:s END SEMI							{: RESULT = new LoopSt(s); :}
+				|	FOR ID:i ASGN expression:ie TO expression:se sq_for:ine DO statement_lst:bs END SEMI	
+													{: RESULT = new ForSt(i,ie,se,ine,new SeqSt(bs)); :}
+				|	FOR ID:i ASGN expression:ie TO expression:se DO statement_lst:bs END SEMI
+													{: RESULT = new ForSt(i,ie,se,new IntConst(1),new SeqSt(bs)); :}
+				|	EXIT SEMI											{: RESULT = new ExitSt(); :}
+				|	RETURN sq_return:sqr SEMI							{: RESULT = new ReturnValueSt(sqr); :}
+				|	RETURN SEMI											{: RESULT = new ReturnSt(); :}
+                ;
+				
+write_paramslst	::=	write_paramslst:wpl COMMA write_expr:we				{: RESULT = append(wpl,we); :}	
+				|	COMMA write_expr:we									{: RESULT = add(we,nil); :}
+				;
+				
+write_params	::=	LPAREN write_expr:we write_paramslst:wpl RPAREN		{: RESULT = add(we,wpl); :}
+				|	LPAREN write_expr:we RPAREN							{: RESULT = add(we,nil); :} 		
+				|	LPAREN RPAREN										{: RESULT = nil; :}
+				;
+
+write_expr		::=	STRING_LITERAL:str				{: RESULT = new StringConst(str); :}
+				|	expression:e					{: RESULT = e; :}
+				;
+
+expression      ::= number:n								{: RESULT = n; :}
+				|	lvalue:lval								{: RESULT = new LvalExp(lval); :}
+				|	LPAREN expression:e RPAREN				{: RESULT = e; :}
+				|	MINUS expression:e						{: RESULT = new UnOpExp("minus",e); :}	
+				|   NOT expression:e						{: RESULT = new UnOpExp("not",e); :}
+				|	expression:e1 PLUS expression:e2		{: RESULT = new BinOpExp("plus",e1,e2); :}
+				| 	expression:e1 MINUS expression:e2		{: RESULT = new BinOpExp("minus",e1,e2); :}
+				| 	expression:e1 TIMES expression:e2		{: RESULT = new BinOpExp("times",e1,e2); :}
+				| 	expression:e1 SLASH expression:e2		{: RESULT = new BinOpExp("slash",e1,e2); :}
+				| 	expression:e1 DIV expression:e2			{: RESULT = new BinOpExp("div",e1,e2); :}
+				| 	expression:e1 MOD expression:e2			{: RESULT = new BinOpExp("mod",e1,e2); :}
+				| 	expression:e1 OR expression:e2			{: RESULT = new BinOpExp("or",e1,e2); :}
+				| 	expression:e1 AND expression:e2			{: RESULT = new BinOpExp("and",e1,e2); :}
+				| 	expression:e1 GT expression:e2			{: RESULT = new BinOpExp("gt",e1,e2); :}
+				| 	expression:e1 LT expression:e2			{: RESULT = new BinOpExp("lt",e1,e2); :}
+				| 	expression:e1 EQ expression:e2			{: RESULT = new BinOpExp("eq",e1,e2); :}
+				| 	expression:e1 GEQ expression:e2			{: RESULT = new BinOpExp("geq",e1,e2); :}
+				| 	expression:e1 LEQ expression:e2			{: RESULT = new BinOpExp("leq",e1,e2); :}
+				| 	expression:e1 NEQ expression:e2			{: RESULT = new BinOpExp("neq",e1,e2); :}
+				|	ID:i actual_params:ap					{: RESULT = new CallExp(i,ap); :}
+				|	ID:i record_inits:ris					{: RESULT = new RecordExp(i,ris); :}
+				|	ID:i array_inits:ais					{: RESULT = new ArrayExp(i,ais); :}	
+                ;
+				
+lvalue			::= ID:i												{: RESULT = new Var(i); :}
+				|	lvalue:lval LSQBRA expression:e RSQBRA				{: RESULT = new ArrayDeref(lval,e); :}
+				|	lvalue:lval DOT ID:i								{: RESULT = new RecordDeref(lval,i); :}
+				;
+				
+expression_lst	::=	expression_lst:el COMMA expression:e				{: RESULT = append(el,e); :}
+				|	COMMA expression:e									{: RESULT = add(e,nil); :}
+				;
+				
+actual_params	::= LPAREN expression:e expression_lst:el RPAREN		{: RESULT = add(e,el); :}	
+				|	LPAREN expression:e RPAREN							{: RESULT = add(e,nil); :} 
+				|	LPAREN RPAREN										{: RESULT = nil; :}
+				;
+				
+record_init_lst	::=	record_init_lst:ril SEMI ID:i ASGN expression:e		{: RESULT = append(ril,add(i,add(e,nil))); :}
+				|	SEMI ID:i ASGN expression:e							{: RESULT = add(i,add(e,nil)); :}
+				;
+				
+record_inits	::= LCUBRA ID:i ASGN expression:e record_init_lst:ril RCUBRA
+													{: RESULT = append(ril,add(i,add(e,nil))); :}
+				;
+				
+array_init_lst	::=	array_init_lst:ail COMMA array_init:ai				{: RESULT = append(ail,ai); :}
+				|	COMMA array_init:ai									{: RESULT = add(ai,nil); :}
+				;
+				
+sq_array_inits	::=	array_init:ai array_init_lst:ail		{: RESULT = append(ai,ail); :}
+				|	array_init:ai							{: RESULT = add(ai,nil); :}
+				;
+				
+array_inits		::= LCUBRA sq_array_inits:sqi RCUBRA		{: RESULT = add(sqi,nil); :}
+				|	LCUBRA RCUBRA
+				;
+
+sq_array_init	::=	expression:e OF							{: RESULT = add(e,nil); :}
+				;
+				
+array_init		::= sq_array_init:sai expression:e			{: RESULT = append(sai,e); :}
+				|	expression:e							{: RESULT = add(e,nil); :}
+				;
+				
+number			::= INTEGER_LITERAL:il						{: RESULT = new IntConst(il); :}
+				|	REAL_LITERAL:rl							{: RESULT = new RealConst(rl); :}	
+				;
